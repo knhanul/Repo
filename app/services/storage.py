@@ -3,13 +3,14 @@ from __future__ import annotations
 import io
 import mimetypes
 import posixpath
+import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import BinaryIO
-from urllib.parse import quote
-import xml.etree.ElementTree as ET
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -53,8 +54,18 @@ class StorageProvider(ABC):
     def move(self, source: str, destination: str, overwrite: bool = False) -> None: ...
 
 
+def _decode_path(value: str) -> str:
+    decoded = value or ""
+    for _ in range(3):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            break
+        decoded = next_value
+    return decoded
+
+
 def normalize_repo_path(path: str) -> str:
-    path = (path or "").replace("\\", "/").strip()
+    path = _decode_path(path).replace("\\", "/").strip()
     raw_parts = [part for part in path.split("/") if part not in ("", ".")]
     if ".." in raw_parts:
         raise StorageError("Repository root 밖의 경로는 사용할 수 없습니다.")
@@ -66,6 +77,21 @@ def normalize_repo_path(path: str) -> str:
     if normalized.startswith("../") or normalized == "..":
         raise StorageError("Repository root 밖의 경로는 사용할 수 없습니다.")
     return normalized
+
+
+def _href_name(href: str) -> str:
+    path = _decode_path(urlsplit(href).path)
+    return posixpath.basename(path.rstrip("/"))
+
+
+def _parse_http_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 class LocalStorageProvider(StorageProvider):
@@ -197,16 +223,22 @@ class WebDavStorageProvider(StorageProvider):
             props = resp.find(f".//{self.DAV}prop")
             if props is None:
                 continue
-            name = props.findtext(f"{self.DAV}displayname") or href.rstrip("/").split("/")[-1]
+            display_name = props.findtext(f"{self.DAV}displayname")
+            name = _decode_path(display_name) if display_name else _href_name(href)
             rt = props.find(f"{self.DAV}resourcetype")
             is_dir = rt is not None and rt.find(f"{self.DAV}collection") is not None
             size_text = props.findtext(f"{self.DAV}getcontentlength")
+            try:
+                size = None if is_dir or not size_text else int(size_text)
+            except ValueError:
+                size = None
             child_path = normalize_repo_path(posixpath.join(base, name))
             entries.append(StorageEntry(
                 name=name,
                 path=child_path,
                 is_dir=is_dir,
-                size=None if is_dir or not size_text else int(size_text),
+                size=size,
+                modified_at=_parse_http_datetime(props.findtext(f"{self.DAV}getlastmodified")),
                 mime_type=props.findtext(f"{self.DAV}getcontenttype"),
             ))
         return sorted(entries, key=lambda x: (not x.is_dir, x.name.lower()))
