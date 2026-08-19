@@ -3,12 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
   <title>로그인 · {{ app_name }}</title>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="login-page">
+  <div class="login-bg-decor"></div>
   <form class="login-card" method="post" action="/login">
-    <div class="brand big"><span>NUNI</span> Repository</div>
+    <div class="login-logo-wrap"><img class="login-logo" src="/static/nuni_logo_login.png" alt="NUNI"></div>
     <h1>로그인</h1>
     <p class="muted">파일과 개발 프로젝트를 한 곳에서 관리합니다.</p>
     {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
