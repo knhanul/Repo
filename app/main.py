@@ -608,9 +608,11 @@ def upload_readme(request: Request, project_id: int, file: UploadFile = File(...
     if not filename.lower().endswith(".md"):
         raise HTTPException(status_code=400, detail="README는 Markdown(.md) 파일만 지원합니다.")
     target = f"{project.slug}/README.md"
+    storage = get_storage()
+    ensure_dirs(storage, str(PurePosixPath(target).parent))
     temp, _, _ = hash_and_spool(file.file, min(settings.max_upload_mb, 10) * 1024 * 1024)
     try:
-        get_storage().write_stream(target, temp, "text/markdown")
+        storage.write_stream(target, temp, "text/markdown")
     finally:
         temp.close()
     project.readme_path = target

@@ -67,7 +67,7 @@
 </section>
 
 <section class="section-block readme-section">
-  <div class="section-title"><h2>README</h2><div class="head-actions"><form method="post" action="/projects/{{ project.id }}/icon" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">아이콘 변경<input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden onchange="this.form.submit()"></label></form><form method="post" action="/projects/{{ project.id }}/readme" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">README.md 선택<input type="file" name="file" accept=".md,text/markdown" hidden onchange="this.form.submit()"></label></form></div></div>
+  <div class="section-title"><h2>README</h2><div class="head-actions"><form method="post" action="/projects/{{ project.id }}/icon" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">아이콘 변경<input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-inline-upload></label></form><form method="post" action="/projects/{{ project.id }}/readme" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">README.md 선택<input type="file" name="file" accept=".md,text/markdown" hidden data-inline-upload></label></form></div></div>
   {% if readme_html %}<article class="markdown-body">{{ readme_html|safe }}</article>{% else %}<div class="empty-inline">README.md를 등록하면 이곳에 표시됩니다.</div>{% endif %}
 </section>
 

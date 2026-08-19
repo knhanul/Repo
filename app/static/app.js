@@ -4,8 +4,48 @@
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const escapeSelectorValue = value => window.CSS?.escape ? CSS.escape(value) : String(value).replace(/["\\]/g, '\\$&');
 
+  // ---------------- Upload Progress Overlay ----------------
+  function showUploadProgress(label) {
+    let overlay = qs('#uploadProgressOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'uploadProgressOverlay';
+      overlay.className = 'upload-overlay';
+      overlay.innerHTML = '<div class="upload-progress-card"><div class="upload-progress-icon">\u21e7</div><div class="upload-progress-info"><div class="upload-progress-label"></div><div class="upload-progress-bar-wrap"><div class="upload-progress-bar"></div></div><div class="upload-progress-pct">0%</div></div></div>';
+      document.body.appendChild(overlay);
+    }
+    qs('.upload-progress-label', overlay).textContent = label || '업로드 중...';
+    qs('.upload-progress-bar', overlay).style.width = '0%';
+    qs('.upload-progress-pct', overlay).textContent = '0%';
+    overlay.classList.add('show');
+    return overlay;
+  }
+  function updateUploadProgress(overlay, pct) {
+    qs('.upload-progress-bar', overlay).style.width = pct + '%';
+    qs('.upload-progress-pct', overlay).textContent = Math.round(pct) + '%';
+  }
+  function hideUploadProgress(overlay) { overlay?.classList.remove('show'); }
+  function uploadFormWithProgress(form, label) {
+    const overlay = showUploadProgress(label);
+    const xhr = new XMLHttpRequest();
+    xhr.open(form.method || 'POST', form.action);
+    xhr.upload.addEventListener('progress', e => { if (e.lengthComputable) updateUploadProgress(overlay, (e.loaded / e.total) * 100); });
+    xhr.addEventListener('load', () => {
+      hideUploadProgress(overlay);
+      if (xhr.status >= 200 && xhr.status < 400) { window.location.href = xhr.responseURL || window.location.href; }
+      else { alert('업로드에 실패했습니다. (' + xhr.status + ')'); }
+    });
+    xhr.addEventListener('error', () => { hideUploadProgress(overlay); alert('업로드 중 오류가 발생했습니다.'); });
+    xhr.send(new FormData(form));
+  }
+
   qsa('[data-open-dialog]').forEach(btn => btn.addEventListener('click', () => document.getElementById(btn.dataset.openDialog)?.showModal()));
   qsa('[data-close-dialog]').forEach(btn => btn.addEventListener('click', () => btn.closest('dialog')?.close()));
+
+  qsa('[data-inline-upload]').forEach(input => input.addEventListener('change', () => {
+    const form = input.closest('form');
+    if (form && input.files?.length) uploadFormWithProgress(form, '업로드 중...');
+  }));
 
   qsa('[data-menu]').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
@@ -28,7 +68,7 @@
   if (fileInput && fileProxy && fileForm) fileInput.addEventListener('change', () => {
     const dt = new DataTransfer(); [...fileInput.files].forEach(f => dt.items.add(f));
     fileProxy.files = dt.files;
-    fileForm.submit();
+    uploadFormWithProgress(fileForm, '파일 업로드 중...');
   });
 
   qsa('.hash-btn').forEach(btn => btn.addEventListener('click', async () => {
@@ -71,6 +111,8 @@
     zone.addEventListener('drop',e=>analyze(e.dataTransfer.files));
   }
   cancel?.addEventListener('click',()=>{preview.classList.add('hidden'); smartInput.value=''; proxy.value='';});
+  const smartForm = qs('#smartUploadForm');
+  if (smartForm) smartForm.addEventListener('submit', e => { e.preventDefault(); uploadFormWithProgress(smartForm, '릴리스 업로드 중...'); });
 
   // ---------------- Explorer folder tree ----------------
   const explorer = qs('#fileExplorerLayout');
@@ -247,7 +289,7 @@
     const dt = new DataTransfer(); [...files].forEach(file => dt.items.add(file));
     fileProxy.files = dt.files;
     fileUploadPath.value = path;
-    fileForm.submit();
+    uploadFormWithProgress(fileForm, '파일 업로드 중...');
   }
 
   function openTreeContextMenu(x, y) {
