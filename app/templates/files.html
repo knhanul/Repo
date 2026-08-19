@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}파일 · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-head split file-page-head">
+  <div>
+    <p class="eyebrow">FILE EXPLORER</p>
+    <h1>파일</h1>
+    <div class="breadcrumbs">
+      <a href="/files">Repository</a>
+      {% for name, p in breadcrumbs %}<span>›</span><a href="/files?path={{ p|urlencode }}">{{ name }}</a>{% endfor %}
+    </div>
+  </div>
+  <div class="head-actions">
+    <button class="btn secondary tree-mobile-toggle" id="folderTreeMobileToggle" type="button">폴더</button>
+    <button class="btn secondary" data-open-dialog="folderDialog">새 폴더</button>
+    <label class="btn primary">파일 업로드<input id="fileUploadInput" type="file" multiple hidden></label>
+  </div>
+</section>
+
+{% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+
+<form id="fileUploadForm" action="/files/upload" method="post" enctype="multipart/form-data" hidden>
+  <input type="hidden" name="path" id="fileUploadPath" value="{{ path }}">
+  <input type="file" name="files" id="fileUploadProxy" multiple>
+</form>
+<input type="file" id="treeUploadInput" multiple hidden>
+
+<section class="file-explorer-layout" id="fileExplorerLayout" data-current-path="{{ path }}">
+  <aside class="folder-tree-panel" id="folderTreePanel" aria-label="폴더 탐색">
+    <div class="folder-tree-head">
+      <div>
+        <strong>폴더</strong>
+        <span>Repository</span>
+      </div>
+      <div class="folder-tree-head-actions">
+        <button type="button" class="tree-tool-btn" id="treeRefresh" title="새로고침" aria-label="폴더 새로고침">↻</button>
+        <button type="button" class="tree-tool-btn" id="treeCollapse" title="폴더 패널 접기" aria-label="폴더 패널 접기">‹</button>
+      </div>
+    </div>
+    <div class="folder-tree-search-wrap">
+      <span class="tree-search-icon">⌕</span>
+      <input id="folderTreeSearch" class="folder-tree-search" placeholder="불러온 폴더 검색" autocomplete="off">
+    </div>
+    <div class="folder-tree-scroll" id="folderTreeScroll">
+      <div class="tree-node root-node" data-tree-path="">
+        <div class="tree-node-row {% if not path %}active{% endif %}" data-tree-row data-path="" draggable="false">
+          <button type="button" class="tree-expander expanded" data-tree-expand aria-label="Repository 접기">▾</button>
+          <span class="tree-folder-icon">▰</span>
+          <a href="/files" class="tree-label">Repository</a>
+          <button type="button" class="tree-node-menu-btn" data-tree-menu-button title="폴더 작업">•••</button>
+        </div>
+        <div class="tree-children" data-tree-children></div>
+      </div>
+      <div class="tree-loading" id="treeLoading">폴더를 불러오는 중...</div>
+      <div class="tree-error hidden" id="treeError"></div>
+    </div>
+    <div class="folder-tree-foot">
+      <span class="tree-status-dot"></span>
+      <span>{{ storage_label }}</span>
+    </div>
+  </aside>
+
+  <div class="tree-resizer" id="treeResizer" title="드래그하여 폴더 영역 크기 조절"></div>
+
+  <main class="file-list-pane">
+    <div class="file-list-toolbar">
+      <button type="button" class="tree-reopen-btn" id="treeReopen" title="폴더 패널 열기">☰ <span>폴더</span></button>
+      <div class="current-folder-summary">
+        <span class="current-folder-icon">▰</span>
+        <div>
+          <strong>{{ breadcrumbs[-1][0] if breadcrumbs else 'Repository' }}</strong>
+          <small>{{ path if path else '/' }}</small>
+        </div>
+      </div>
+      <div class="file-count">{{ entries|length }}개 항목</div>
+    </div>
+
+    <section class="file-table-card">
+      <div class="file-table header"><div>이름</div><div>크기</div><div>수정일</div><div></div></div>
+      {% for entry in entries %}
+      <div class="file-table row file-entry-row" draggable="true" data-entry-path="{{ entry.path }}" data-entry-dir="{{ '1' if entry.is_dir else '0' }}">
+        <div class="name-cell">
+          {% if entry.is_dir %}
+            <span class="folder-icon">▰</span><a href="/files?path={{ entry.path|urlencode }}"><strong>{{ entry.name }}</strong></a>
+          {% else %}
+            <span class="doc-icon">▤</span><a href="/files/download?path={{ entry.path|urlencode }}">{{ entry.name }}</a>
+          {% endif %}
+        </div>
+        <div>{{ entry.size|filesize }}</div>
+        <div>{{ entry.modified_at.strftime('%Y-%m-%d %H:%M') if entry.modified_at else '—' }}</div>
+        <div class="row-actions">
+          <button class="more-btn" data-menu="menu-{{ loop.index }}" type="button">•••</button>
+          <div class="context-menu" id="menu-{{ loop.index }}">
+            {% if not entry.is_dir %}<a href="/files/download?path={{ entry.path|urlencode }}">다운로드</a>{% endif %}
+            <button type="button" class="rename-trigger" data-path="{{ entry.path }}" data-name="{{ entry.name }}">이름 변경</button>
+            <form method="post" action="/files/delete" onsubmit="return confirm('정말 삭제할까요?')">
+              <input type="hidden" name="path" value="{{ entry.path }}">
+              <input type="hidden" name="return_path" value="{{ path }}">
+              <button type="submit" class="danger-text">삭제</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% else %}<div class="empty-inline big">이 폴더는 비어 있습니다.</div>{% endfor %}
+    </section>
+
+    <div class="file-drop-help">파일/폴더 행을 왼쪽 폴더 트리로 끌어 놓으면 이동할 수 있습니다. Windows 탐색기의 파일을 폴더 트리에 놓으면 해당 폴더로 업로드됩니다.</div>
+  </main>
+</section>
+
+<div class="tree-context-menu" id="treeContextMenu">
+  <button type="button" data-tree-action="open">열기</button>
+  <button type="button" data-tree-action="new-folder">새 폴더</button>
+  <button type="button" data-tree-action="upload">파일 업로드</button>
+  <button type="button" data-tree-action="refresh">새로고침</button>
+</div>
+
+<dialog id="folderDialog" class="dialog">
+  <form method="post" action="/files/folder">
+    <input type="hidden" name="path" id="folderDialogPath" value="{{ path }}">
+    <div class="dialog-head"><div><h2>새 폴더</h2><p id="folderDialogLocation">현재 폴더에 생성</p></div><button class="icon-btn" type="button" data-close-dialog>×</button></div>
+    <label>폴더명<input name="name" required autofocus></label>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn primary">만들기</button></div>
+  </form>
+</dialog>
+
+<dialog id="renameDialog" class="dialog">
+  <form method="post" action="/files/rename">
+    <input type="hidden" name="path" id="renamePath">
+    <input type="hidden" name="return_path" value="{{ path }}">
+    <div class="dialog-head"><h2>이름 변경</h2><button class="icon-btn" type="button" data-close-dialog>×</button></div>
+    <label>새 이름<input name="new_name" id="renameName" required></label>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn primary">변경</button></div>
+  </form>
+</dialog>
+{% endblock %}

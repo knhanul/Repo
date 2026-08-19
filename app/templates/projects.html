@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}프로젝트 · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-head split">
+  <div>
+    <p class="eyebrow">SOFTWARE REPOSITORY</p>
+    <h1>프로젝트</h1>
+    <p class="muted">개발 프로그램의 최신 버전과 릴리스를 빠르게 관리합니다.</p>
+  </div>
+  <button class="btn primary" data-open-dialog="projectDialog">+ 새 프로젝트</button>
+</section>
+
+<section class="toolbar-card">
+  <form class="search" method="get" action="/projects">
+    <span>⌕</span><input name="q" value="{{ q }}" placeholder="프로젝트명 또는 설명 검색"><button class="btn ghost" type="submit">검색</button>
+  </form>
+</section>
+
+{% if recent_releases %}
+<section class="section-block">
+  <div class="section-title"><h2>최근 업데이트</h2></div>
+  <div class="recent-strip">
+    {% for release in recent_releases %}
+      <a class="recent-item" href="/projects/{{ release.project.id }}">
+        <div class="project-avatar sm">{{ release.project.name[:1]|upper }}</div>
+        <div><strong>{{ release.project.name }}</strong><span>v{{ release.version }}</span></div>
+        <time>{{ release.created_at.strftime('%Y-%m-%d') }}</time>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section-block">
+  <div class="section-title"><h2>전체 프로젝트</h2><span class="count">{{ projects|length }}개</span></div>
+  {% if projects %}
+  <div class="project-grid">
+    {% for project in projects %}
+      {% set latest = latest_map.get(project.id) %}
+      <article class="project-card">
+        <a class="project-main" href="/projects/{{ project.id }}">
+          {% if project.icon_path %}<img class="project-avatar project-icon-img" src="/projects/{{ project.id }}/icon" alt="">{% else %}<div class="project-avatar">{{ project.name[:2]|upper }}</div>{% endif %}
+          <div class="project-copy">
+            <div class="project-name-line"><h3>{{ project.name }}</h3>{% if latest %}<span class="version-pill">v{{ latest.version }}</span>{% endif %}</div>
+            <p>{{ project.description or '설명이 없습니다.' }}</p>
+            <div class="meta-row">
+              {% if latest %}<span>최근 {{ latest.created_at.strftime('%Y.%m.%d') }}</span><span>{{ latest.files|length }}개 파일</span>{% else %}<span>아직 릴리스가 없습니다.</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        <div class="project-actions">
+          {% if latest and latest.files %}<a class="btn primary compact" href="/projects/{{ project.id }}/latest/download">최신 버전 다운로드</a>{% endif %}
+          <a class="btn secondary compact" href="/projects/{{ project.id }}">열기</a>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="empty-state"><div class="empty-icon">▣</div><h3>등록된 프로젝트가 없습니다.</h3><p>프로젝트는 이름만으로 만들 수 있습니다. 이후 파일을 끌어다 놓으면 버전과 유형을 자동 인식합니다.</p><button class="btn primary" data-open-dialog="projectDialog">첫 프로젝트 만들기</button></div>
+  {% endif %}
+</section>
+
+<dialog id="projectDialog" class="dialog">
+  <form method="post" action="/projects" enctype="multipart/form-data">
+    <div class="dialog-head"><div><h2>새 프로젝트</h2><p>프로젝트명만 필수입니다.</p></div><button type="button" class="icon-btn" data-close-dialog>×</button></div>
+    <label>프로젝트명 <em>*</em><input name="name" required placeholder="예: POSID"></label>
+    <label>설명 <span class="optional">선택</span><textarea name="description" rows="3" placeholder="예: HWP/HWPX 및 Office 문서 변환 프로그램"></textarea></label>
+    <label>아이콘 <span class="optional">선택 · PNG/JPG/WEBP/GIF</span><input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn primary" type="submit">생성</button></div>
+  </form>
+</dialog>
+{% endblock %}

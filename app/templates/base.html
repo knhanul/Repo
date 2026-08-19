@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/projects"><span>NUNI</span> Repository</a>
+  {% if current_user %}
+  <nav class="nav">
+    <a href="/files" class="{% if request.url.path.startswith('/files') %}active{% endif %}">파일</a>
+    <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}">프로젝트</a>
+    <a href="/shares" class="{% if request.url.path.startswith('/shares') %}active{% endif %}">공유</a>
+    {% if current_user.is_admin %}<a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">사용자</a>{% endif %}
+    <a href="/logs" class="{% if request.url.path.startswith('/logs') %}active{% endif %}">기록</a>
+  </nav>
+  <div class="top-actions">
+    {% if show_env_badge %}<span class="env-badge" title="현재 저장소">{{ storage_label }}</span>{% endif %}
+    <span class="user-badge">{{ current_user.display_name }} · {{ current_user.username }}</span>
+    <form method="post" action="/logout"><button class="link-btn" type="submit">로그아웃</button></form>
+  </div>
+  {% endif %}
+</header>
+<main class="shell">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

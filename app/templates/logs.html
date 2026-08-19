@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}기록 · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-head"><p class="eyebrow">AUDIT LOG</p><h1>기록</h1><p class="muted">최근 300개의 주요 작업 기록입니다.</p></section>
+<section class="panel"><div class="log-table"><div class="log-row header"><div>시간</div><div>사용자</div><div>작업</div><div>대상</div><div>상세</div></div>{% for log in logs %}<div class="log-row"><div>{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</div><div>{{ users.get(log.user_id).username if users.get(log.user_id) else 'system' }}</div><div><span class="action-pill">{{ log.action }}</span></div><div class="truncate">{{ log.target or '—' }}</div><div class="truncate muted">{{ log.detail or '—' }}</div></div>{% else %}<div class="empty-inline">기록이 없습니다.</div>{% endfor %}</div></section>
+{% endblock %}

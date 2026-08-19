@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="backline"><a href="/projects">← 프로젝트</a></div>
+<section class="project-hero">
+  {% if project.icon_path %}<img class="project-avatar xl project-icon-img" src="/projects/{{ project.id }}/icon" alt="">{% else %}<div class="project-avatar xl">{{ project.name[:2]|upper }}</div>{% endif %}
+  <div class="hero-copy">
+    <div class="project-name-line"><h1>{{ project.name }}</h1>{% if latest %}<span class="version-pill large">최신 v{{ latest.version }}</span>{% endif %}</div>
+    <p>{{ project.description or '설명이 없습니다.' }}</p>
+    <div class="meta-row"><span>업데이트 {{ project.updated_at.strftime('%Y.%m.%d') }}</span><span>{{ releases|length }}개 릴리스</span></div>
+  </div>
+  <div class="hero-actions">
+    {% if latest and latest.files %}<a class="btn primary" href="/projects/{{ project.id }}/latest/download">↓ 최신 버전 다운로드</a>{% endif %}
+    <button class="btn secondary" data-open-dialog="uploadDialog">+ 새 버전 업로드</button>
+  </div>
+</section>
+
+<section class="smart-zone" id="smartDropZone" data-project-id="{{ project.id }}">
+  <div class="smart-icon">⇧</div>
+  <h2>Smart Upload</h2>
+  <p>설치파일, APK, 소스 ZIP 등을 끌어다 놓으세요.<br>파일명에서 버전과 파일 유형을 자동으로 인식합니다.</p>
+  <button class="btn primary" type="button" id="chooseSmartFiles">파일 선택</button>
+  <input type="file" id="smartFileInput" multiple hidden>
+  <div class="smart-hint">예: {{ project.name }}-Setup-1.5.0.exe · {{ project.name }}-1.5.0-source.zip</div>
+</section>
+
+<section id="smartPreview" class="smart-preview hidden">
+  <div class="section-title"><h2>업로드 확인</h2><span class="auto-badge">자동 분석</span></div>
+  <div id="smartPreviewBody"></div>
+  <form id="smartUploadForm" method="post" action="/projects/{{ project.id }}/smart-upload" enctype="multipart/form-data">
+    <input id="uploadFilesProxy" type="file" name="files" multiple hidden>
+    <div class="form-grid two">
+      <label>변경사항 <span class="optional">선택</span><textarea name="release_notes" rows="3" placeholder="입력하지 않아도 됩니다."></textarea></label>
+      <label id="versionOverrideWrap" class="hidden">버전 <span class="optional">자동 인식 실패 파일용</span><input name="version_override" placeholder="예: 1.5.0"></label>
+    </div>
+    <label class="checkline"><input type="checkbox" name="overwrite" value="true"> 같은 버전의 동일 파일이 있으면 교체</label>
+    <div class="preview-actions"><button type="button" class="btn secondary" id="cancelPreview">취소</button><button type="submit" class="btn primary" id="submitSmartUpload">업로드</button></div>
+  </form>
+</section>
+
+<section class="section-block">
+  <div class="section-title"><h2>릴리스</h2><span class="count">{{ releases|length }}개</span></div>
+  {% if releases %}
+    <div class="release-list">
+      {% for release in releases %}
+      <article class="release-card {% if release.is_latest %}latest{% endif %}">
+        <div class="release-head">
+          <div><div class="release-version"><strong>v{{ release.version }}</strong>{% if release.is_latest %}<span class="latest-badge">LATEST</span>{% endif %}{% if release.is_prerelease %}<span class="pre-badge">PRE</span>{% endif %}</div><time>{{ release.created_at.strftime('%Y-%m-%d %H:%M') }}</time></div>
+          {% if not release.is_latest %}<form method="post" action="/releases/{{ release.id }}/latest"><button class="btn ghost compact" type="submit">최신 버전으로 지정</button></form>{% endif %}
+        </div>
+        {% if release.release_notes %}<p class="release-notes">{{ release.release_notes }}</p>{% endif %}
+        <div class="release-files">
+          {% for file in release.files %}
+          <div class="release-file">
+            <div class="file-icon">{% if 'Installer' in file.file_type or 'Executable' in file.file_type %}▣{% elif 'Android' in file.file_type %}◈{% elif 'Source' in file.file_type %}⌘{% elif 'Documentation' in file.file_type %}▤{% else %}◇{% endif %}</div>
+            <div class="file-copy"><strong>{{ file.original_filename }}</strong><div class="meta-row"><span>{{ file.file_type }}</span><span>{{ file.file_size|filesize }}</span><span>{{ file.download_count }}회 다운로드</span>{% if file.is_primary_download %}<span class="primary-file">대표 다운로드</span>{% endif %}</div></div>
+            <div class="file-actions"><button class="btn ghost compact hash-btn" type="button" data-hash="{{ file.sha256 }}">SHA-256</button>{% if not file.is_primary_download %}<form method="post" action="/release-files/{{ file.id }}/primary"><button class="btn ghost compact" type="submit">대표 지정</button></form>{% endif %}<a class="btn secondary compact" href="/releases/files/{{ file.id }}/download">다운로드</a></div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state slim"><h3>아직 릴리스가 없습니다.</h3><p>위 Smart Upload 영역에 파일을 끌어다 놓아 첫 버전을 등록하세요.</p></div>
+  {% endif %}
+</section>
+
+<section class="section-block readme-section">
+  <div class="section-title"><h2>README</h2><div class="head-actions"><form method="post" action="/projects/{{ project.id }}/icon" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">아이콘 변경<input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden onchange="this.form.submit()"></label></form><form method="post" action="/projects/{{ project.id }}/readme" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">README.md 선택<input type="file" name="file" accept=".md,text/markdown" hidden onchange="this.form.submit()"></label></form></div></div>
+  {% if readme_html %}<article class="markdown-body">{{ readme_html|safe }}</article>{% else %}<div class="empty-inline">README.md를 등록하면 이곳에 표시됩니다.</div>{% endif %}
+</section>
+
+<dialog id="uploadDialog" class="dialog"><div class="dialog-head"><div><h2>새 버전 업로드</h2><p>Smart Upload 영역으로 이동합니다.</p></div><button class="icon-btn" data-close-dialog>×</button></div><div class="dialog-actions"><button class="btn primary" type="button" onclick="document.getElementById('uploadDialog').close(); document.getElementById('chooseSmartFiles').click();">파일 선택</button></div></dialog>
+{% endblock %}

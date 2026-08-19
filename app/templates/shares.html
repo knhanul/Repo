@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}공유 · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-head split"><div><p class="eyebrow">SHARE LINKS</p><h1>공유</h1><p class="muted">Repository 파일을 기간 제한 링크로 공유합니다.</p></div></section>
+<section class="panel form-panel"><h2>새 공유 링크</h2><form class="form-grid three" method="post" action="/shares"><label>파일 경로<input name="storage_path" required placeholder="예: POSID/releases/1.5.0/POSID-Setup-1.5.0.exe"></label><label>유효 기간(일)<input type="number" name="days" value="7" min="1" max="365"></label><div class="align-end"><button class="btn primary">공유 링크 생성</button></div></form></section>
+<section class="panel"><div class="section-title"><h2>공유 링크</h2><span class="count">{{ shares|length }}개</span></div><div class="simple-list">{% for s in shares %}<div class="simple-row"><div><strong>{{ s.storage_path }}</strong><div class="meta-row"><span>만료 {{ s.expires_at.strftime('%Y-%m-%d %H:%M') if s.expires_at else '없음' }}</span></div></div><div class="copy-share" data-url="{{ request.base_url }}s/{{ s.token }}"><button class="btn secondary compact">링크 복사</button></div></div>{% else %}<div class="empty-inline">생성된 공유 링크가 없습니다.</div>{% endfor %}</div></section>
+{% endblock %}
