@@ -18,10 +18,10 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .audit import add_audit
 from .config import settings
-from .db import Base, SessionLocal, engine, get_db
+from .db import Base, SessionLocal, engine, ensure_schema_compatibility, get_db
 from .models import AuditLog, Project, Release, ReleaseFile, ShareLink, User
 from .security import hash_password, verify_password
-from .services.project_service import ensure_release, project_release_path, refresh_latest_flags, refresh_primary_file, unique_slug
+from .services.project_service import ensure_release, normalize_output_type, normalize_source_url, normalize_website_url, project_release_path, project_storage_path, refresh_latest_flags, refresh_primary_file, unique_slug
 from .services.file_tree import move_destination
 from .services.smart_upload import analyze_filename, hash_and_spool
 from .services.storage import StorageError, get_storage, normalize_repo_path
@@ -111,6 +111,7 @@ def startup() -> None:
         db_path = settings.database_url.removeprefix("sqlite:///")
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
+    ensure_schema_compatibility()
     storage = get_storage()
     if settings.storage_type.lower() == "local":
         storage.list("")
@@ -343,6 +344,9 @@ def create_project(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
+    output_type: str = Form("windows_app"),
+    website_url: str = Form(""),
+    source_url: str = Form(""),
     icon: UploadFile | None = File(None),
     db: Session = Depends(get_db),
 ):
@@ -352,22 +356,31 @@ def create_project(
         raise HTTPException(status_code=400, detail="프로젝트명을 입력하세요.")
     if db.scalar(select(Project).where(func.lower(Project.name) == clean_name.lower())):
         raise HTTPException(status_code=409, detail="동일한 프로젝트명이 이미 존재합니다.")
+    try:
+        clean_output_type = normalize_output_type(output_type)
+        clean_website_url = normalize_website_url(website_url, clean_output_type)
+        clean_source_url = normalize_source_url(source_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     project = Project(
         name=clean_name,
         slug=unique_slug(db, clean_name),
         description=description.strip() or None,
+        output_type=clean_output_type,
+        website_url=clean_website_url,
+        source_url=clean_source_url,
         created_by_id=user.id,
     )
     db.add(project)
     db.flush()
     storage = get_storage()
-    ensure_dirs(storage, project.slug)
+    ensure_dirs(storage, project_storage_path(project))
     if icon and icon.filename:
         icon_name = safe_filename(icon.filename)
         ext = PurePosixPath(icon_name).suffix.lower()
         if ext not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
             raise HTTPException(status_code=400, detail="프로젝트 아이콘은 PNG/JPG/WEBP/GIF만 지원합니다.")
-        icon_target = f"{project.slug}/icon{ext}"
+        icon_target = f"{project_storage_path(project)}/icon{ext}"
         temp, _, _ = hash_and_spool(icon.file, 5 * 1024 * 1024)
         try:
             storage.write_stream(icon_target, temp, icon.content_type or mimetypes.guess_type(icon_name)[0])
@@ -401,7 +414,7 @@ def upload_project_icon(request: Request, project_id: int, icon: UploadFile = Fi
     ext = PurePosixPath(icon_name).suffix.lower()
     if ext not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="프로젝트 아이콘은 PNG/JPG/WEBP/GIF만 지원합니다.")
-    target = f"{project.slug}/icon{ext}"
+    target = f"{project_storage_path(project)}/icon{ext}"
     temp, _, _ = hash_and_spool(icon.file, 5 * 1024 * 1024)
     try:
         get_storage().write_stream(target, temp, icon.content_type or mimetypes.guess_type(icon_name)[0])
@@ -436,6 +449,46 @@ def project_detail(request: Request, project_id: int, db: Session = Depends(get_
     return templates.TemplateResponse(request, "project_detail.html", template_context(
         request, project=project, releases=releases, latest=latest, readme_html=readme_html
     ))
+
+
+@app.post("/projects/{project_id}/source")
+def update_project_source(request: Request, project_id: int, source_url: str = Form(""), db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404)
+    try:
+        project.source_url = normalize_source_url(source_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    project.updated_at = datetime.now(timezone.utc)
+    add_audit(db, user.id, "UPDATE_PROJECT_SOURCE", project.source_url or "")
+    db.commit()
+    return RedirectResponse(f"/projects/{project.id}", status_code=303)
+
+
+@app.post("/projects/{project_id}/output")
+def update_project_output(
+    request: Request,
+    project_id: int,
+    output_type: str = Form("windows_app"),
+    website_url: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = require_user(request, db)
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404)
+    try:
+        clean_output_type = normalize_output_type(output_type)
+        project.website_url = normalize_website_url(website_url, clean_output_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    project.output_type = clean_output_type
+    project.updated_at = datetime.now(timezone.utc)
+    add_audit(db, user.id, "UPDATE_PROJECT_OUTPUT", f"{clean_output_type}: {project.website_url or ''}")
+    db.commit()
+    return RedirectResponse(f"/projects/{project.id}", status_code=303)
 
 
 @app.post("/api/smart-upload/analyze")
@@ -607,7 +660,7 @@ def upload_readme(request: Request, project_id: int, file: UploadFile = File(...
     filename = safe_filename(file.filename or "README.md")
     if not filename.lower().endswith(".md"):
         raise HTTPException(status_code=400, detail="README는 Markdown(.md) 파일만 지원합니다.")
-    target = f"{project.slug}/README.md"
+    target = f"{project_storage_path(project)}/README.md"
     storage = get_storage()
     ensure_dirs(storage, str(PurePosixPath(target).parent))
     temp, _, _ = hash_and_spool(file.file, min(settings.max_upload_mb, 10) * 1024 * 1024)

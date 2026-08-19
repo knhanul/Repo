@@ -10,8 +10,8 @@
   <button class="btn primary" data-open-dialog="projectDialog">+ 새 프로젝트</button>
 </section>
 
-<section class="toolbar-card">
-  <form class="search" method="get" action="/projects">
+<section class="toolbar-card project-search-card">
+  <form class="search project-search" method="get" action="/projects">
     <span>⌕</span><input name="q" value="{{ q }}" placeholder="프로젝트명 또는 설명 검색"><button class="btn ghost" type="submit">검색</button>
   </form>
 </section>
@@ -41,7 +41,7 @@
         <a class="project-main" href="/projects/{{ project.id }}">
           {% if project.icon_path %}<img class="project-avatar project-icon-img" src="/projects/{{ project.id }}/icon" alt="">{% else %}<div class="project-avatar">{{ project.name[:2]|upper }}</div>{% endif %}
           <div class="project-copy">
-            <div class="project-name-line"><h3>{{ project.name }}</h3>{% if latest %}<span class="version-pill">v{{ latest.version }}</span>{% endif %}</div>
+            <div class="project-name-line"><h3>{{ project.name }}</h3>{% if (project.output_type or 'windows_app') == 'website' %}<span class="output-type-badge website">웹사이트</span>{% elif (project.output_type or 'windows_app') == 'smartphone_app' %}<span class="output-type-badge mobile">스마트폰 앱</span>{% else %}<span class="output-type-badge windows">윈도우용 앱</span>{% endif %}{% if latest %}<span class="version-pill">v{{ latest.version }}</span>{% endif %}</div>
             <p>{{ project.description or '설명이 없습니다.' }}</p>
             <div class="meta-row">
               {% if latest %}<span>최근 {{ latest.created_at.strftime('%Y.%m.%d') }}</span><span>{{ latest.files|length }}개 파일</span>{% else %}<span>아직 릴리스가 없습니다.</span>{% endif %}
@@ -50,6 +50,8 @@
         </a>
         <div class="project-actions">
           {% if latest and latest.files %}<a class="btn primary compact" href="/projects/{{ project.id }}/latest/download">최신 버전 다운로드</a>{% endif %}
+          {% if project.website_url %}<a class="btn ghost compact" href="{{ project.website_url }}" target="_blank" rel="noopener noreferrer">웹사이트</a>{% endif %}
+          {% if project.source_url %}<a class="btn ghost compact" href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer">Git 소스</a>{% endif %}
           <a class="btn secondary compact" href="/projects/{{ project.id }}">열기</a>
         </div>
       </article>
@@ -65,6 +67,9 @@
     <div class="dialog-head"><div><h2>새 프로젝트</h2><p>프로젝트명만 필수입니다.</p></div><button type="button" class="icon-btn" data-close-dialog>×</button></div>
     <label>프로젝트명 <em>*</em><input name="name" required placeholder="예: POSID"></label>
     <label>설명 <span class="optional">선택</span><textarea name="description" rows="3" placeholder="예: HWP/HWPX 및 Office 문서 변환 프로그램"></textarea></label>
+    <label>산출물 유형 <select name="output_type"><option value="windows_app">윈도우용 앱</option><option value="smartphone_app">스마트폰 앱</option><option value="website">웹사이트</option></select></label>
+    <label>웹사이트 주소 <span class="optional">웹사이트 유형 선택 시 필수</span><input type="url" name="website_url" placeholder="https://example.com"></label>
+    <label>Git 소스 링크 <span class="optional">선택 · HTTPS 또는 HTTP</span><input type="url" name="source_url" placeholder="https://github.com/example/project"></label>
     <label>아이콘 <span class="optional">선택 · PNG/JPG/WEBP/GIF</span><input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif"></label>
     <div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn primary" type="submit">생성</button></div>
   </form>

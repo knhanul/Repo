@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import re
 from pathlib import PurePosixPath
+from urllib.parse import urlsplit
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..models import Project, Release, ReleaseFile
 from .smart_upload import choose_latest, choose_primary, is_prerelease
+
+
+PROJECTS_ROOT = "프로젝트"
+PROJECT_OUTPUT_TYPES = {
+    "windows_app": "윈도우용 앱",
+    "smartphone_app": "스마트폰 앱",
+    "website": "웹사이트",
+}
 
 
 def slugify(name: str) -> str:
@@ -27,8 +36,41 @@ def unique_slug(db: Session, name: str) -> str:
     return slug
 
 
+def normalize_output_type(value: str | None) -> str:
+    output_type = (value or "windows_app").strip()
+    if output_type not in PROJECT_OUTPUT_TYPES:
+        raise ValueError("지원하지 않는 프로젝트 산출물 유형입니다.")
+    return output_type
+
+
+def normalize_source_url(value: str | None) -> str | None:
+    source_url = (value or "").strip()
+    if not source_url:
+        return None
+    parsed = urlsplit(source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Git 소스 링크는 http:// 또는 https:// URL이어야 합니다.")
+    return source_url
+
+
+def normalize_website_url(value: str | None, output_type: str) -> str | None:
+    website_url = (value or "").strip()
+    if not website_url:
+        if output_type == "website":
+            raise ValueError("웹사이트 프로젝트는 웹사이트 주소를 입력해야 합니다.")
+        return None
+    parsed = urlsplit(website_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("웹사이트 주소는 http:// 또는 https:// URL이어야 합니다.")
+    return website_url
+
+
+def project_storage_path(project: Project) -> str:
+    return str(PurePosixPath(PROJECTS_ROOT) / project.slug)
+
+
 def project_release_path(project: Project, version: str, filename: str) -> str:
-    return str(PurePosixPath(project.slug) / "releases" / version / PurePosixPath(filename).name)
+    return str(PurePosixPath(project_storage_path(project)) / "releases" / version / PurePosixPath(filename).name)
 
 
 def ensure_release(db: Session, project: Project, version: str, user_id: int | None, notes: str | None = None) -> Release:
