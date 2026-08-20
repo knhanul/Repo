@@ -2,76 +2,115 @@
 {% block title %}{{ project.name }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="backline"><a href="/projects">← 프로젝트</a></div>
-<section class="project-hero">
+<section class="project-hero project-header-compact">
   {% if project.icon_path %}<img class="project-avatar xl project-icon-img" src="/projects/{{ project.id }}/icon" alt="">{% else %}<div class="project-avatar xl">{{ project.name[:2]|upper }}</div>{% endif %}
   <div class="hero-copy">
-    <div class="project-name-line"><h1>{{ project.name }}</h1>{% if (project.output_type or 'windows_app') == 'website' %}<span class="output-type-badge website">웹사이트</span>{% elif (project.output_type or 'windows_app') == 'smartphone_app' %}<span class="output-type-badge mobile">스마트폰 앱</span>{% else %}<span class="output-type-badge windows">윈도우용 앱</span>{% endif %}{% if latest %}<span class="version-pill large">최신 v{{ latest.version }}</span>{% endif %}</div>
+    <div class="project-name-line"><h1>{{ project.name }}</h1><span class="output-type-badge">{{ project_type_labels.get(project.project_type or 'OTHER', '기타') }}</span>{% for platform in project.platforms or [] %}<span class="platform-badge">{{ platform }}</span>{% endfor %}</div>
     <p>{{ project.description or '설명이 없습니다.' }}</p>
-    <div class="meta-row"><span>업데이트 {{ project.updated_at.strftime('%Y.%m.%d') }}</span><span>{{ releases|length }}개 릴리스</span></div>
+    <div class="meta-row"><span>{% if latest %}최신 v{{ latest.version }}{% else %}릴리스 없음{% endif %}</span><span>업데이트 {{ project.updated_at.strftime('%Y.%m.%d') }}</span></div>
   </div>
   <div class="hero-actions">
-    {% if project.website_url %}<a class="btn secondary" href="{{ project.website_url }}" target="_blank" rel="noopener noreferrer">웹사이트 열기</a>{% endif %}
-    {% if project.source_url %}<a class="btn secondary" href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer">Git 소스</a>{% endif %}
-    {% if latest and latest.files %}<a class="btn primary" href="/projects/{{ project.id }}/latest/download">↓ 최신 버전 다운로드</a>{% endif %}
-    <button class="btn secondary" data-open-dialog="uploadDialog">+ 새 버전 업로드</button>
+    {% if project.source_url %}<a class="btn secondary compact" href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer">Git</a>{% endif %}
+    {% if project.website_url %}<a class="btn secondary compact" href="{{ project.website_url }}" target="_blank" rel="noopener noreferrer">Website</a>{% endif %}
+    {% if latest and primary_file %}<a class="btn primary" href="/projects/{{ project.id }}/latest/download">최신 버전 다운로드</a>{% endif %}
+    <a class="btn secondary" href="/projects/{{ project.id }}?tab=releases#releases">+ 새 릴리스</a>
   </div>
 </section>
 
-<section class="smart-zone" id="smartDropZone" data-project-id="{{ project.id }}">
-  <div class="smart-icon">⇧</div>
-  <h2>Smart Upload</h2>
-  <p>설치파일, APK, 소스 ZIP 등을 끌어다 놓으세요.<br>파일명에서 버전과 파일 유형을 자동으로 인식합니다.</p>
-  <button class="btn primary" type="button" id="chooseSmartFiles">파일 선택</button>
-  <input type="file" id="smartFileInput" multiple hidden>
-  <div class="smart-hint">예: {{ project.name }}-Setup-1.5.0.exe · {{ project.name }}-1.5.0-source.zip</div>
+<nav class="project-tabs" aria-label="프로젝트 메뉴">
+  <a class="{% if active_tab == 'overview' %}active{% endif %}" href="/projects/{{ project.id }}?tab=overview">개요</a>
+  <a class="{% if active_tab == 'releases' %}active{% endif %}" href="/projects/{{ project.id }}?tab=releases" id="releases">릴리스</a>
+  <a class="{% if active_tab == 'resources' %}active{% endif %}" href="/projects/{{ project.id }}?tab=resources">자료</a>
+  <a class="{% if active_tab == 'settings' %}active{% endif %}" href="/projects/{{ project.id }}?tab=settings">설정</a>
+</nav>
+
+{% if active_tab == 'overview' %}
+<section class="project-overview-grid">
+  <article class="panel overview-card">
+    <div class="section-title"><h2>프로젝트 정보</h2></div>
+    <dl class="project-info-list">
+      <div><dt>유형</dt><dd>{{ project_type_labels.get(project.project_type or 'OTHER', '기타') }}</dd></div>
+      <div><dt>플랫폼</dt><dd>{% if project.platforms %}{% for platform in project.platforms %}<span class="platform-badge">{{ platform }}</span>{% endfor %}{% else %}지정되지 않음{% endif %}</dd></div>
+      <div><dt>최신 버전</dt><dd>{% if latest %}v{{ latest.version }}{% else %}릴리스 없음{% endif %}</dd></div>
+      <div><dt>업데이트</dt><dd>{{ project.updated_at.strftime('%Y.%m.%d') }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="panel overview-card latest-release-card">
+    <div class="section-title"><h2>최신 릴리스</h2>{% if latest %}<span class="latest-badge">LATEST</span>{% endif %}</div>
+    {% if latest and primary_file %}
+      <div class="overview-release-version"><strong>v{{ latest.version }}</strong><time>{{ latest.created_at.strftime('%Y.%m.%d') }}</time></div>
+      <div class="overview-primary-file"><strong>{{ primary_file.original_filename }}</strong><span>{{ primary_file.file_size|filesize }}</span></div>
+      <div class="overview-card-actions"><a class="btn primary compact" href="/releases/files/{{ primary_file.id }}/download">다운로드</a><a class="btn ghost compact" href="/projects/{{ project.id }}?tab=releases">모든 릴리스 보기</a></div>
+    {% else %}<div class="empty-inline">등록된 릴리스가 없습니다.</div>{% endif %}
+  </article>
+
+  <article class="panel overview-card">
+    <div class="section-title"><h2>프로젝트 자료</h2><a class="text-link" href="/projects/{{ project.id }}?tab=resources">자료 보기</a></div>
+    <div class="resource-summary-grid">{% for category, label in resource_category_labels.items() %}<div><strong>{{ resource_counts.get(category, 0) }}</strong><span>{{ label }}</span></div>{% endfor %}</div>
+    {% if not resource_counts.values()|sum %}<p class="empty-hint">등록된 프로젝트 자료가 없습니다.</p>{% endif %}
+  </article>
+
+  <article class="panel overview-card">
+    <div class="section-title"><h2>개발 / 관련 링크</h2></div>
+    {% if project.source_url %}<a class="link-row" href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer"><span>Git Repository</span><strong>열기 ↗</strong></a>{% endif %}
+    {% if project.website_url %}<a class="link-row" href="{{ project.website_url }}" target="_blank" rel="noopener noreferrer"><span>Website</span><strong>열기 ↗</strong></a>{% endif %}
+    {% if not project.source_url and not project.website_url %}<div class="empty-inline">등록된 관련 링크가 없습니다.</div>{% endif %}
+  </article>
 </section>
 
-<section id="smartPreview" class="smart-preview hidden">
-  <div class="section-title"><h2>업로드 확인</h2><span class="auto-badge">자동 분석</span></div>
-  <div id="smartPreviewBody"></div>
-  <form id="smartUploadForm" method="post" action="/projects/{{ project.id }}/smart-upload" enctype="multipart/form-data">
-    <input id="uploadFilesProxy" type="file" name="files" multiple hidden>
-    <div class="form-grid two">
-      <label>변경사항 <span class="optional">선택</span><textarea name="release_notes" rows="3" placeholder="입력하지 않아도 됩니다."></textarea></label>
-      <label id="versionOverrideWrap" class="hidden">버전 <span class="optional">자동 인식 실패 파일용</span><input name="version_override" placeholder="예: 1.5.0"></label>
-    </div>
-    <label class="checkline"><input type="checkbox" name="overwrite" value="true"> 같은 버전의 동일 파일이 있으면 교체</label>
-    <div class="preview-actions"><button type="button" class="btn secondary" id="cancelPreview">취소</button><button type="submit" class="btn primary" id="submitSmartUpload">업로드</button></div>
-  </form>
+<section class="panel overview-readme-section" id="readme">
+  <div class="section-title"><h2>README</h2>{% if not readme_html %}<a class="text-link" href="/projects/{{ project.id }}?tab=settings#readme-settings">README 등록</a>{% endif %}</div>
+  {% if readme_html %}<article class="markdown-body overview-readme-body">{{ readme_html|safe }}</article>{% else %}<div class="empty-inline">README.md가 등록되지 않았습니다.</div>{% endif %}
 </section>
-
-<section class="section-block">
-  <div class="section-title"><h2>릴리스</h2><span class="count">{{ releases|length }}개</span></div>
+{% elif active_tab == 'releases' %}
+<section class="section-block project-tab-section" id="releases">
+  <div class="section-title"><div><h2>릴리스</h2><p class="muted">버전별 배포파일과 변경사항을 관리합니다.</p></div><button class="btn primary" data-open-dialog="releaseUploadDialog">+ 새 릴리스</button></div>
   {% if releases %}
     <div class="release-list">
       {% for release in releases %}
       <article class="release-card {% if release.is_latest %}latest{% endif %}">
-        <div class="release-head">
-          <div><div class="release-version"><strong>v{{ release.version }}</strong>{% if release.is_latest %}<span class="latest-badge">LATEST</span>{% endif %}{% if release.is_prerelease %}<span class="pre-badge">PRE</span>{% endif %}</div><time>{{ release.created_at.strftime('%Y-%m-%d %H:%M') }}</time></div>
-          {% if not release.is_latest %}<form method="post" action="/releases/{{ release.id }}/latest"><button class="btn ghost compact" type="submit">최신 버전으로 지정</button></form>{% endif %}
-        </div>
+        <div class="release-head"><div><div class="release-version"><strong>v{{ release.version }}</strong>{% if release.is_latest %}<span class="latest-badge">LATEST</span>{% endif %}{% if release.is_prerelease %}<span class="pre-badge">PRE</span>{% endif %}</div><time>{{ release.created_at.strftime('%Y-%m-%d %H:%M') }}</time></div>{% if not release.is_latest %}<form method="post" action="/releases/{{ release.id }}/latest"><button class="btn ghost compact" type="submit">최신 버전으로 지정</button></form>{% endif %}</div>
         {% if release.release_notes %}<p class="release-notes">{{ release.release_notes }}</p>{% endif %}
-        <div class="release-files">
-          {% for file in release.files %}
-          <div class="release-file">
-            <div class="file-icon">{% if 'Installer' in file.file_type or 'Executable' in file.file_type %}▣{% elif 'Android' in file.file_type %}◈{% elif 'Source' in file.file_type %}⌘{% elif 'Documentation' in file.file_type %}▤{% else %}◇{% endif %}</div>
-            <div class="file-copy"><strong>{{ file.original_filename }}</strong><div class="meta-row"><span>{{ file.file_type }}</span><span>{{ file.file_size|filesize }}</span><span>{{ file.download_count }}회 다운로드</span>{% if file.is_primary_download %}<span class="primary-file">대표 다운로드</span>{% endif %}</div></div>
-            <div class="file-actions"><button class="btn ghost compact hash-btn" type="button" data-hash="{{ file.sha256 }}">SHA-256</button>{% if not file.is_primary_download %}<form method="post" action="/release-files/{{ file.id }}/primary"><button class="btn ghost compact" type="submit">대표 지정</button></form>{% endif %}<a class="btn secondary compact" href="/releases/files/{{ file.id }}/download">다운로드</a></div>
-          </div>
-          {% endfor %}
-        </div>
+        <div class="release-files">{% for file in release.files %}<div class="release-file"><div class="file-icon">{% if 'Installer' in file.file_type or 'Executable' in file.file_type %}▣{% elif 'Android' in file.file_type %}◈{% elif 'Source' in file.file_type %}⌘{% elif 'Documentation' in file.file_type %}▤{% else %}◇{% endif %}</div><div class="file-copy"><strong>{{ file.original_filename }}</strong><div class="meta-row"><span>{{ file.file_type }}</span><span>{{ file.file_size|filesize }}</span><span>{{ file.download_count }}회 다운로드</span>{% if file.is_primary_download %}<span class="primary-file">대표 다운로드</span>{% endif %}</div></div><div class="file-actions"><button class="btn ghost compact hash-btn" type="button" data-hash="{{ file.sha256 }}">SHA-256</button>{% if not file.is_primary_download %}<form method="post" action="/release-files/{{ file.id }}/primary"><button class="btn ghost compact" type="submit">대표 지정</button></form>{% endif %}<a class="btn secondary compact" href="/releases/files/{{ file.id }}/download">다운로드</a></div></div>{% endfor %}</div>
       </article>
       {% endfor %}
     </div>
-  {% else %}
-    <div class="empty-state slim"><h3>아직 릴리스가 없습니다.</h3><p>위 Smart Upload 영역에 파일을 끌어다 놓아 첫 버전을 등록하세요.</p></div>
-  {% endif %}
+  {% else %}<div class="empty-state slim"><h3>아직 릴리스가 없습니다.</h3><p>새 릴리스 버튼에서 파일을 등록하세요.</p></div>{% endif %}
 </section>
 
-<section class="section-block readme-section">
-  <div class="section-title"><h2>README</h2><div class="head-actions"><form method="post" action="/projects/{{ project.id }}/output" class="output-link-form"><select name="output_type"><option value="windows_app"{% if (project.output_type or 'windows_app') == 'windows_app' %} selected{% endif %}>윈도우용 앱</option><option value="smartphone_app"{% if project.output_type == 'smartphone_app' %} selected{% endif %}>스마트폰 앱</option><option value="website"{% if project.output_type == 'website' %} selected{% endif %}>웹사이트</option></select><input type="url" name="website_url" value="{{ project.website_url or '' }}" placeholder="웹사이트 주소"><button class="btn ghost compact" type="submit">산출물 저장</button></form><form method="post" action="/projects/{{ project.id }}/source" class="source-link-form"><input type="url" name="source_url" value="{{ project.source_url or '' }}" placeholder="Git 소스 링크"><button class="btn ghost compact" type="submit">저장</button></form><form method="post" action="/projects/{{ project.id }}/icon" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">아이콘 변경<input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-inline-upload></label></form><form method="post" action="/projects/{{ project.id }}/readme" enctype="multipart/form-data" class="inline-upload"><label class="btn ghost compact">README.md 선택<input type="file" name="file" accept=".md,text/markdown" hidden data-inline-upload></label></form></div></div>
-  {% if readme_html %}<article class="markdown-body">{{ readme_html|safe }}</article>{% else %}<div class="empty-inline">README.md를 등록하면 이곳에 표시됩니다.</div>{% endif %}
+<dialog id="releaseUploadDialog" class="dialog release-upload-dialog">
+  <div class="dialog-head"><div><h2>새 릴리스 등록</h2><p>파일명에서 버전과 파일 유형을 자동으로 인식합니다.</p></div><button class="icon-btn" type="button" data-close-dialog>×</button></div>
+  <section class="smart-zone compact-smart-zone" id="smartDropZone" data-project-id="{{ project.id }}"><div class="smart-icon">⇧</div><h2>파일을 끌어다 놓으세요</h2><p>또는 파일을 선택하여 릴리스를 등록하세요.</p><button class="btn primary" type="button" id="chooseSmartFiles">파일 선택</button><input type="file" id="smartFileInput" multiple hidden></section>
+  <section id="smartPreview" class="smart-preview hidden"><div class="section-title"><h2>자동 분석</h2><span class="auto-badge">자동 분석</span></div><div id="smartPreviewBody"></div><form id="smartUploadForm" method="post" action="/projects/{{ project.id }}/smart-upload" enctype="multipart/form-data"><input id="uploadFilesProxy" type="file" name="files" multiple hidden><div class="form-grid two"><label>변경사항 <span class="optional">선택</span><textarea name="release_notes" rows="3" placeholder="입력하지 않아도 됩니다."></textarea></label><label id="versionOverrideWrap" class="hidden">버전 <span class="optional">자동 인식 실패 파일용</span><input name="version_override" placeholder="예: 1.5.0"></label></div><label class="checkline"><input type="checkbox" name="overwrite" value="true"> 같은 버전의 동일 파일이 있으면 교체</label><div class="preview-actions"><button type="button" class="btn secondary" id="cancelPreview">취소</button><button type="submit" class="btn primary" id="submitSmartUpload">업로드</button></div></form></section>
+</dialog>
+{% elif active_tab == 'resources' %}
+<section class="project-tab-section resources-section">
+  <div class="section-title"><div><h2>프로젝트 자료</h2><p class="muted">도움말, 보고서, 샘플 파일 등 프로젝트 관련 자료를 관리합니다. 릴리스 탭은 버전별 배포물을 관리하는 곳입니다.</p></div><button class="btn primary" data-open-dialog="resourceDialog">+ 자료 추가</button></div>
+  <nav class="resource-filters" aria-label="자료 분류 필터"><a class="{% if not resource_category %}active{% endif %}" href="/projects/{{ project.id }}?tab=resources">전체 <span>{{ resource_counts.values()|sum }}</span></a>{% for category, label in resource_category_labels.items() %}<a class="{% if resource_category == category %}active{% endif %}" href="/projects/{{ project.id }}?tab=resources&category={{ category }}">{{ label }} <span>{{ resource_counts.get(category, 0) }}</span></a>{% endfor %}</nav>
+  {% if resources %}<div class="resource-list">{% for resource in resources %}<article class="resource-row"><div class="resource-file-icon">▤</div><div class="resource-copy"><div class="resource-title-line"><strong>{{ resource.title }}</strong><span class="resource-category-badge">{{ resource_category_labels.get(resource.category, resource.category) }}</span></div><div class="resource-meta"><span>{{ resource.original_filename }}</span><span>{{ resource.file_size|filesize }}</span><span>{{ resource.created_at.strftime('%Y.%m.%d') }}</span></div>{% if resource.description %}<p>{{ resource.description }}</p>{% endif %}</div><div class="resource-actions"><a class="btn secondary compact" href="/projects/{{ project.id }}/resources/{{ resource.id }}/download">다운로드</a>{% if current_user and current_user.is_admin %}<form method="post" action="/projects/{{ project.id }}/resources/{{ resource.id }}/delete" onsubmit="return confirm('이 자료를 삭제하시겠습니까?')"><button class="btn danger compact" type="submit">삭제</button></form>{% endif %}</div></article>{% endfor %}</div>{% else %}<div class="panel resource-empty-state"><div class="empty-icon">▤</div><h3>등록된 프로젝트 자료가 없습니다.</h3><p>도움말, 보고서, 샘플 파일, 문서 등을 프로젝트 자료로 관리할 수 있습니다.</p><button class="btn primary" data-open-dialog="resourceDialog">+ 자료 추가</button></div>{% endif %}
 </section>
 
-<dialog id="uploadDialog" class="dialog"><div class="dialog-head"><div><h2>새 버전 업로드</h2><p>Smart Upload 영역으로 이동합니다.</p></div><button class="icon-btn" data-close-dialog>×</button></div><div class="dialog-actions"><button class="btn primary" type="button" onclick="document.getElementById('uploadDialog').close(); document.getElementById('chooseSmartFiles').click();">파일 선택</button></div></dialog>
+<dialog id="resourceDialog" class="dialog resource-dialog">
+  <form id="resourceUploadForm" method="post" action="/projects/{{ project.id }}/resources" enctype="multipart/form-data">
+    <div class="dialog-head"><div><h2>자료 추가</h2><p>릴리스 배포물이 아닌 도움말, 보고서, 샘플, 문서를 등록합니다.</p></div><button type="button" class="icon-btn" data-close-dialog>×</button></div>
+    <label>파일 <em>*</em></label><div id="resourceDropZone" class="resource-drop-zone"><strong>파일을 끌어다 놓으세요</strong><span>여러 파일을 한 번에 선택할 수 있습니다.</span><label class="btn ghost compact">파일 선택<input id="resourceFileInput" type="file" name="files" multiple required hidden></label></div>
+    <div id="resourceFileTitles" class="resource-file-titles"></div>
+    <label>분류 <em>*</em><select name="category" required>{% for category, label in resource_category_labels.items() %}<option value="{{ category }}">{{ label }}</option>{% endfor %}</select></label>
+    <label>설명 <span class="optional">선택 · 선택한 파일에 공통 적용</span><textarea name="description" rows="3" placeholder="예: 설치 및 기본 사용 방법"></textarea></label>
+    <label class="checkline"><input type="checkbox" name="overwrite" value="true"> 같은 분류의 동일 파일이 있으면 교체</label>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn primary" type="submit">업로드</button></div>
+  </form>
+</dialog>
+{% elif active_tab == 'settings' %}
+<section class="settings-grid project-tab-section">
+  <article class="panel settings-card"><div class="section-title"><h2>기본 정보</h2></div><p class="muted">프로젝트 유형과 지원 플랫폼을 관리합니다.</p><form method="post" action="/projects/{{ project.id }}/settings" class="settings-form"><label>프로젝트명<input name="name" value="{{ project.name }}" required></label><label>설명<textarea name="description" rows="3">{{ project.description or '' }}</textarea></label><label>프로젝트 유형<select name="project_type"><option value="WINDOWS_APP"{% if (project.project_type or 'OTHER') == 'WINDOWS_APP' %} selected{% endif %}>Windows 프로그램</option><option value="WEB_APP"{% if project.project_type == 'WEB_APP' %} selected{% endif %}>웹 애플리케이션 / 웹사이트</option><option value="MOBILE_APP"{% if project.project_type == 'MOBILE_APP' %} selected{% endif %}>모바일 앱</option><option value="CROSS_PLATFORM_APP"{% if project.project_type == 'CROSS_PLATFORM_APP' %} selected{% endif %}>크로스플랫폼 앱</option><option value="LIBRARY_TOOL"{% if project.project_type == 'LIBRARY_TOOL' %} selected{% endif %}>라이브러리 / 도구</option><option value="OTHER"{% if (project.project_type or 'OTHER') == 'OTHER' %} selected{% endif %}>기타</option></select></label><fieldset class="platform-options"><legend>플랫폼</legend>{% for platform in supported_platforms %}<label><input type="checkbox" name="platforms" value="{{ platform }}"{% if project.platforms and platform in project.platforms %} checked{% endif %}> {{ platform }}</label>{% endfor %}</fieldset><label>Website <input type="url" name="website_url" value="{{ project.website_url or '' }}" placeholder="https://example.com"></label><button class="btn primary" type="submit">기본 정보 저장</button></form><form method="post" action="/projects/{{ project.id }}/icon" enctype="multipart/form-data" class="settings-inline-form"><label class="btn ghost">아이콘 변경<input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-inline-upload></label></form></article>
+  <article class="panel settings-card"><div class="section-title"><h2>관련 링크</h2></div><form method="post" action="/projects/{{ project.id }}/source" class="settings-form"><label>Git Repository <input type="url" name="source_url" value="{{ project.source_url or '' }}" placeholder="https://github.com/example/project"></label><button class="btn primary" type="submit">Git 링크 저장</button></form><div class="settings-current-links">{% if project.source_url %}<a href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer">현재 Git 링크 열기 ↗</a>{% endif %}{% if project.website_url %}<a href="{{ project.website_url }}" target="_blank" rel="noopener noreferrer">현재 Website 열기 ↗</a>{% endif %}</div></article>
+  <article class="panel settings-card" id="readme-settings"><div class="section-title"><h2>README</h2></div>{% if readme_html %}<article class="markdown-body settings-readme-preview">{{ readme_html|safe }}</article>{% else %}<div class="empty-inline">README.md가 등록되지 않았습니다.</div>{% endif %}<form method="post" action="/projects/{{ project.id }}/readme" enctype="multipart/form-data" class="settings-inline-form"><label class="btn ghost">README.md 업로드<input type="file" name="file" accept=".md,text/markdown" hidden data-inline-upload></label></form></article>
+</section>
+{% if current_user and current_user.is_admin %}
+<section class="panel danger-zone project-tab-section"><div><h2>위험 영역</h2><p>프로젝트와 릴리스, 자료 폴더를 Trash로 이동합니다. 삭제 후에도 admin이 복구할 수 있습니다.</p></div><button class="btn danger" data-open-dialog="projectDeleteDialog">프로젝트 삭제</button></section>
+<dialog id="projectDeleteDialog" class="dialog"><form method="post" action="/projects/{{ project.id }}/delete"><div class="dialog-head"><div><h2>프로젝트 삭제</h2><p>'{{ project.name }}' 프로젝트를 삭제합니다.</p></div><button type="button" class="icon-btn" data-close-dialog>×</button></div><p>계속하려면 프로젝트명을 정확하게 입력하세요.</p><label>프로젝트명<input name="confirm_name" required autocomplete="off" placeholder="{{ project.name }}"></label><div class="dialog-actions"><button type="button" class="btn secondary" data-close-dialog>취소</button><button class="btn danger" type="submit">프로젝트 삭제</button></div></form></dialog>
+{% endif %}
+{% endif %}
 {% endblock %}

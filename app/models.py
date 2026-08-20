@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .project_types import ProjectType, ResourceCategory
 
 
 def utcnow() -> datetime:
@@ -31,17 +32,47 @@ class Project(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(160), unique=True, index=True)
     slug: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    storage_root: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    output_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, default="windows_app")
+    project_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, default=ProjectType.OTHER.value)
+    platforms: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=list)
     website_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     icon_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     readme_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    trash_path: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     created_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     releases: Mapped[list["Release"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    resources: Mapped[list["ProjectResource"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+
+class ProjectResource(Base):
+    __tablename__ = "project_resources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    category: Mapped[str] = mapped_column(String(30), default=ResourceCategory.OTHER.value)
+    title: Mapped[str] = mapped_column(String(300))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    original_filename: Mapped[str] = mapped_column(String(500))
+    storage_path: Mapped[str] = mapped_column(String(1000), unique=True)
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    mime_type: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    trash_path: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    created_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="resources")
 
 
 class Release(Base):

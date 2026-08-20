@@ -26,16 +26,20 @@
   }
   function hideUploadProgress(overlay) { overlay?.classList.remove('show'); }
   function uploadFormWithProgress(form, label) {
+    if (form.dataset.uploading === '1') return;
+    form.dataset.uploading = '1';
+    qsa('button[type="submit"]', form).forEach(button => { button.disabled = true; button.dataset.originalText = button.textContent; button.textContent = '처리 중...'; });
     const overlay = showUploadProgress(label);
     const xhr = new XMLHttpRequest();
+    const reset = () => { form.dataset.uploading = '0'; qsa('button[type="submit"]', form).forEach(button => { button.disabled = false; if (button.dataset.originalText) button.textContent = button.dataset.originalText; }); };
     xhr.open(form.method || 'POST', form.action);
     xhr.upload.addEventListener('progress', e => { if (e.lengthComputable) updateUploadProgress(overlay, (e.loaded / e.total) * 100); });
     xhr.addEventListener('load', () => {
       hideUploadProgress(overlay);
       if (xhr.status >= 200 && xhr.status < 400) { window.location.href = xhr.responseURL || window.location.href; }
-      else { alert('업로드에 실패했습니다. (' + xhr.status + ')'); }
+      else { reset(); alert('업로드에 실패했습니다. (' + xhr.status + ')'); }
     });
-    xhr.addEventListener('error', () => { hideUploadProgress(overlay); alert('업로드 중 오류가 발생했습니다.'); });
+    xhr.addEventListener('error', () => { reset(); hideUploadProgress(overlay); alert('업로드 중 오류가 발생했습니다.'); });
     xhr.send(new FormData(form));
   }
 
@@ -45,6 +49,10 @@
   qsa('[data-inline-upload]').forEach(input => input.addEventListener('change', () => {
     const form = input.closest('form');
     if (form && input.files?.length) uploadFormWithProgress(form, '업로드 중...');
+  }));
+
+  qsa('form.settings-form, form.source-link-form').forEach(form => form.addEventListener('submit', () => {
+    qsa('button[type="submit"]', form).forEach(button => { button.disabled = true; button.dataset.originalText = button.textContent; button.textContent = '저장 중...'; });
   }));
 
   qsa('[data-menu]').forEach(btn => btn.addEventListener('click', e => {
@@ -79,6 +87,32 @@
     try { await navigator.clipboard.writeText(wrap.dataset.url); wrap.querySelector('button').textContent = '복사됨'; }
     catch { prompt('공유 링크', wrap.dataset.url); }
   }));
+
+  // ---------------- Project Resources ----------------
+  const resourceInput = qs('#resourceFileInput');
+  const resourceDropZone = qs('#resourceDropZone');
+  const resourceTitles = qs('#resourceFileTitles');
+  const resourceForm = qs('#resourceUploadForm');
+  function renderResourceTitles(files) {
+    if (!resourceTitles) return;
+    resourceTitles.innerHTML = [...(files || [])].map(file => {
+      const title = file.name.replace(/\.[^.]+$/, '');
+      return `<label>${escapeHtml(file.name)}<input name="titles" value="${escapeHtml(title)}" maxlength="300"></label>`;
+    }).join('');
+  }
+  resourceInput?.addEventListener('change', () => renderResourceTitles(resourceInput.files));
+  if (resourceDropZone && resourceInput) {
+    ['dragenter', 'dragover'].forEach(type => resourceDropZone.addEventListener(type, e => { e.preventDefault(); resourceDropZone.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach(type => resourceDropZone.addEventListener(type, e => { e.preventDefault(); resourceDropZone.classList.remove('dragover'); }));
+    resourceDropZone.addEventListener('drop', e => {
+      const files = e.dataTransfer?.files;
+      if (!files?.length) return;
+      const transfer = new DataTransfer(); [...files].forEach(file => transfer.items.add(file));
+      resourceInput.files = transfer.files;
+      renderResourceTitles(resourceInput.files);
+    });
+  }
+  resourceForm?.addEventListener('submit', e => { e.preventDefault(); uploadFormWithProgress(resourceForm, '자료 업로드 중...'); });
 
   // ---------------- Smart Upload ----------------
   const zone = qs('#smartDropZone');
@@ -135,6 +169,7 @@
   const folderDialogPath = qs('#folderDialogPath');
   const folderDialogLocation = qs('#folderDialogLocation');
   let contextFolderPath = '';
+  let contextFolderManaged = false;
   let uploadTargetPath = '';
 
   const pathUrl = path => path ? `/files?path=${encodeURIComponent(path)}` : '/files';
@@ -156,11 +191,12 @@
     const node = document.createElement('div');
     node.className = 'tree-node';
     node.dataset.treePath = folder.path;
+    node.dataset.managed = folder.managed ? '1' : '0';
     node.innerHTML = `
-      <div class="tree-node-row${folder.path === currentPath ? ' active' : ''}" data-tree-row data-path="${escapeHtml(folder.path)}">
+      <div class="tree-node-row${folder.path === currentPath ? ' active' : ''}" data-tree-row data-path="${escapeHtml(folder.path)}" data-managed="${folder.managed ? '1' : '0'}">
         <button type="button" class="tree-expander" data-tree-expand aria-label="하위 폴더 펼치기">▸</button>
         <span class="tree-folder-icon">▰</span>
-        <a class="tree-label" href="${pathUrl(folder.path)}" title="${escapeHtml(folder.path)}">${escapeHtml(folder.name)}</a>
+        <a class="tree-label" href="${pathUrl(folder.path)}" title="${escapeHtml(folder.path)}">${escapeHtml(folder.name)}</a>${folder.managed ? '<span class="managed-tree-badge">PROJECT</span>' : ''}
         <button type="button" class="tree-node-menu-btn" data-tree-menu-button title="폴더 작업">•••</button>
       </div>
       <div class="tree-children hidden" data-tree-children></div>`;
@@ -234,12 +270,14 @@
     menuButton?.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
       contextFolderPath = row?.dataset.path || '';
+      contextFolderManaged = row?.dataset.managed === '1';
       openTreeContextMenu(e.clientX, e.clientY);
     });
 
     row?.addEventListener('contextmenu', e => {
       e.preventDefault();
       contextFolderPath = row.dataset.path || '';
+      contextFolderManaged = row.dataset.managed === '1';
       openTreeContextMenu(e.clientX, e.clientY);
     });
 
@@ -260,6 +298,10 @@
       row.classList.remove('drop-target');
       const destination = row.dataset.path || '';
       const source = e.dataTransfer.getData('application/x-nuni-path');
+      if (row.dataset.managed === '1' || source && source.startsWith('프로젝트/')) {
+        alert('프로젝트에서 관리되는 항목입니다. 프로젝트 관리 화면에서 변경하세요.');
+        return;
+      }
       if (source) {
         if (destination === parentPath(source)) return;
         await moveEntry(source, destination);
@@ -294,6 +336,11 @@
 
   function openTreeContextMenu(x, y) {
     if (!treeContextMenu) return;
+    qsa('[data-tree-action="new-folder"],[data-tree-action="upload"]', treeContextMenu).forEach(button => {
+      button.disabled = contextFolderManaged;
+      button.classList.toggle('disabled-action', contextFolderManaged);
+      button.title = contextFolderManaged ? '프로젝트에서 관리되는 항목입니다.' : '';
+    });
     treeContextMenu.classList.add('open');
     const width = 178, height = 164;
     treeContextMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
@@ -309,6 +356,11 @@
     const button = e.target.closest('[data-tree-action]');
     if (!button) return;
     const action = button.dataset.treeAction;
+    if (contextFolderManaged && ['new-folder', 'upload'].includes(action)) {
+      closeTreeContextMenu();
+      alert('프로젝트에서 관리되는 항목입니다. 프로젝트 관리 화면에서 변경하세요.');
+      return;
+    }
     closeTreeContextMenu();
     if (action === 'open') { window.location.href = pathUrl(contextFolderPath); return; }
     if (action === 'new-folder') {
@@ -339,6 +391,7 @@
 
   qsa('.file-entry-row').forEach(row => {
     row.addEventListener('dragstart', e => {
+      if (row.dataset.managed === '1') { e.preventDefault(); return; }
       const path = row.dataset.entryPath || '';
       e.dataTransfer.setData('application/x-nuni-path', path);
       e.dataTransfer.setData('text/plain', path);

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}삭제된 프로젝트 · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="backline"><a href="/projects">← 프로젝트</a></div>
+<section class="page-head"><p class="eyebrow">ADMIN RECOVERY</p><h1>삭제된 프로젝트</h1><p class="muted">Trash로 이동된 프로젝트를 확인하고 복구합니다.</p></section>
+<section class="panel deleted-project-list">
+  {% if projects %}
+    {% for project in projects %}
+    <article class="deleted-project-row"><div><strong>{{ project.name }}</strong><div class="deleted-project-meta">slug: {{ project.slug }} · 삭제일 {{ project.deleted_at.strftime('%Y.%m.%d %H:%M') if project.deleted_at else '—' }}</div><div class="deleted-project-meta">Trash: {{ project.trash_path or '—' }}</div></div><form method="post" action="/projects/{{ project.id }}/restore"><button class="btn primary compact" type="submit">복구</button></form></article>
+    {% endfor %}
+  {% else %}<div class="empty-inline big">삭제된 프로젝트가 없습니다.</div>{% endif %}
+</section>
+{% endblock %}

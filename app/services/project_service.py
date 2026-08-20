@@ -8,15 +8,12 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..models import Project, Release, ReleaseFile
+from ..project_types import LEGACY_OUTPUT_TYPE_MAP, PROJECT_TYPE_LABELS, SUPPORTED_PLATFORMS, ProjectType
 from .smart_upload import choose_latest, choose_primary, is_prerelease
+from .storage import normalize_repo_path
 
 
 PROJECTS_ROOT = "프로젝트"
-PROJECT_OUTPUT_TYPES = {
-    "windows_app": "윈도우용 앱",
-    "smartphone_app": "스마트폰 앱",
-    "website": "웹사이트",
-}
 
 
 def slugify(name: str) -> str:
@@ -36,11 +33,23 @@ def unique_slug(db: Session, name: str) -> str:
     return slug
 
 
-def normalize_output_type(value: str | None) -> str:
-    output_type = (value or "windows_app").strip()
-    if output_type not in PROJECT_OUTPUT_TYPES:
-        raise ValueError("지원하지 않는 프로젝트 산출물 유형입니다.")
-    return output_type
+def normalize_project_type(value: str | None) -> str:
+    project_type = (value or ProjectType.OTHER.value).strip()
+    project_type = LEGACY_OUTPUT_TYPE_MAP.get(project_type, project_type)
+    if project_type not in PROJECT_TYPE_LABELS:
+        raise ValueError("지원하지 않는 프로젝트 유형입니다.")
+    return project_type
+
+
+def normalize_platforms(values: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for value in values or []:
+        platform = value.strip()
+        if platform not in SUPPORTED_PLATFORMS:
+            raise ValueError("지원하지 않는 플랫폼입니다.")
+        if platform not in normalized:
+            normalized.append(platform)
+    return normalized
 
 
 def normalize_source_url(value: str | None) -> str | None:
@@ -53,10 +62,10 @@ def normalize_source_url(value: str | None) -> str | None:
     return source_url
 
 
-def normalize_website_url(value: str | None, output_type: str) -> str | None:
+def normalize_website_url(value: str | None, project_type: str) -> str | None:
     website_url = (value or "").strip()
     if not website_url:
-        if output_type == "website":
+        if project_type == ProjectType.WEB_APP.value:
             raise ValueError("웹사이트 프로젝트는 웹사이트 주소를 입력해야 합니다.")
         return None
     parsed = urlsplit(website_url)
@@ -65,8 +74,27 @@ def normalize_website_url(value: str | None, output_type: str) -> str | None:
     return website_url
 
 
+def get_active_project(db: Session, project_id: int) -> Project | None:
+    return db.scalar(select(Project).where(Project.id == project_id, Project.is_deleted.is_(False)))
+
+
 def project_storage_path(project: Project) -> str:
-    return str(PurePosixPath(PROJECTS_ROOT) / project.slug)
+    return project.storage_root or str(PurePosixPath(PROJECTS_ROOT) / project.slug)
+
+
+def resolve_project_storage_root(project: Project, storage) -> str | None:
+    candidates = [project.storage_root, str(PurePosixPath(PROJECTS_ROOT) / project.slug), project.slug]
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        normalized = normalize_repo_path(candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if storage.exists(normalized):
+            return normalized
+    return None
 
 
 def project_release_path(project: Project, version: str, filename: str) -> str:

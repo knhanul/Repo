@@ -12,8 +12,7 @@
   </div>
   <div class="head-actions">
     <button class="btn secondary tree-mobile-toggle" id="folderTreeMobileToggle" type="button">폴더</button>
-    <button class="btn secondary" data-open-dialog="folderDialog">새 폴더</button>
-    <label class="btn primary">파일 업로드<input id="fileUploadInput" type="file" multiple hidden></label>
+    {% if not managed_current %}<button class="btn secondary" data-open-dialog="folderDialog">새 폴더</button><label class="btn primary">파일 업로드<input id="fileUploadInput" type="file" multiple hidden></label>{% else %}<span class="managed-notice">프로젝트 관리 영역 · 조회/다운로드 전용</span>{% endif %}
   </div>
 </section>
 
@@ -78,12 +77,13 @@
     <section class="file-table-card">
       <div class="file-table header"><div>이름</div><div>크기</div><div>수정일</div><div></div></div>
       {% for entry in entries %}
-      <div class="file-table row file-entry-row" draggable="true" data-entry-path="{{ entry.path }}" data-entry-dir="{{ '1' if entry.is_dir else '0' }}">
+      {% set entry_managed = entry.path in managed_paths %}
+      <div class="file-table row file-entry-row{% if entry_managed %} managed-entry{% endif %}" draggable="{{ 'false' if entry_managed else 'true' }}" data-entry-path="{{ entry.path }}" data-entry-dir="{{ '1' if entry.is_dir else '0' }}" data-entry-managed="{{ '1' if entry_managed else '0' }}" title="{{ '프로젝트에서 관리되는 항목입니다. 변경 및 삭제는 프로젝트 관리 화면에서 수행하세요.' if entry_managed else '' }}">
         <div class="name-cell">
           {% if entry.is_dir %}
-            <span class="folder-icon">▰</span><a href="/files?path={{ entry.path|urlencode }}"><strong>{{ entry.name }}</strong></a>
+            <span class="folder-icon">▰</span><a href="/files?path={{ entry.path|urlencode }}"><strong>{{ entry.name }}</strong></a>{% if entry_managed %}<span class="managed-badge">PROJECT</span>{% endif %}
           {% else %}
-            <span class="doc-icon">▤</span><a href="/files/download?path={{ entry.path|urlencode }}">{{ entry.name }}</a>
+            <span class="doc-icon">▤</span><a href="/files/download?path={{ entry.path|urlencode }}">{{ entry.name }}</a>{% if entry_managed %}<span class="managed-lock">관리</span>{% endif %}
           {% endif %}
         </div>
         <div>{{ entry.size|filesize }}</div>
@@ -92,12 +92,7 @@
           <button class="more-btn" data-menu="menu-{{ loop.index }}" type="button">•••</button>
           <div class="context-menu" id="menu-{{ loop.index }}">
             {% if not entry.is_dir %}<a href="/files/download?path={{ entry.path|urlencode }}">다운로드</a>{% endif %}
-            <button type="button" class="rename-trigger" data-path="{{ entry.path }}" data-name="{{ entry.name }}">이름 변경</button>
-            <form method="post" action="/files/delete" onsubmit="return confirm('정말 삭제할까요?')">
-              <input type="hidden" name="path" value="{{ entry.path }}">
-              <input type="hidden" name="return_path" value="{{ path }}">
-              <button type="submit" class="danger-text">삭제</button>
-            </form>
+            {% if entry_managed %}<span class="disabled-action" title="프로젝트에서 관리되는 항목입니다.">이름 변경</span><span class="disabled-action" title="프로젝트에서 관리되는 항목입니다.">삭제</span>{% else %}<button type="button" class="rename-trigger" data-path="{{ entry.path }}" data-name="{{ entry.name }}">이름 변경</button><form method="post" action="/files/delete" onsubmit="return confirm('정말 삭제할까요?')"><input type="hidden" name="path" value="{{ entry.path }}"><input type="hidden" name="return_path" value="{{ path }}"><button type="submit" class="danger-text">삭제</button></form>{% endif %}
           </div>
         </div>
       </div>

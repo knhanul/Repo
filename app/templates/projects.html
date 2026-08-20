@@ -32,7 +32,7 @@
 {% endif %}
 
 <section class="section-block">
-  <div class="section-title"><h2>전체 프로젝트</h2><span class="count">{{ projects|length }}개</span></div>
+  <div class="section-title"><h2>전체 프로젝트</h2><div class="head-actions"><span class="count">{{ projects|length }}개</span>{% if current_user and current_user.is_admin %}<a class="text-link" href="/projects/deleted">삭제된 프로젝트</a>{% endif %}</div></div>
   {% if projects %}
   <div class="project-grid">
     {% for project in projects %}
@@ -41,7 +41,7 @@
         <a class="project-main" href="/projects/{{ project.id }}">
           {% if project.icon_path %}<img class="project-avatar project-icon-img" src="/projects/{{ project.id }}/icon" alt="">{% else %}<div class="project-avatar">{{ project.name[:2]|upper }}</div>{% endif %}
           <div class="project-copy">
-            <div class="project-name-line"><h3>{{ project.name }}</h3>{% if (project.output_type or 'windows_app') == 'website' %}<span class="output-type-badge website">웹사이트</span>{% elif (project.output_type or 'windows_app') == 'smartphone_app' %}<span class="output-type-badge mobile">스마트폰 앱</span>{% else %}<span class="output-type-badge windows">윈도우용 앱</span>{% endif %}{% if latest %}<span class="version-pill">v{{ latest.version }}</span>{% endif %}</div>
+            <div class="project-name-line"><h3>{{ project.name }}</h3><span class="output-type-badge">{{ project_type_labels.get(project.project_type or 'OTHER', '기타') }}</span>{% if latest %}<span class="version-pill">v{{ latest.version }}</span>{% endif %}</div>
             <p>{{ project.description or '설명이 없습니다.' }}</p>
             <div class="meta-row">
               {% if latest %}<span>최근 {{ latest.created_at.strftime('%Y.%m.%d') }}</span><span>{{ latest.files|length }}개 파일</span>{% else %}<span>아직 릴리스가 없습니다.</span>{% endif %}
@@ -67,7 +67,8 @@
     <div class="dialog-head"><div><h2>새 프로젝트</h2><p>프로젝트명만 필수입니다.</p></div><button type="button" class="icon-btn" data-close-dialog>×</button></div>
     <label>프로젝트명 <em>*</em><input name="name" required placeholder="예: POSID"></label>
     <label>설명 <span class="optional">선택</span><textarea name="description" rows="3" placeholder="예: HWP/HWPX 및 Office 문서 변환 프로그램"></textarea></label>
-    <label>산출물 유형 <select name="output_type"><option value="windows_app">윈도우용 앱</option><option value="smartphone_app">스마트폰 앱</option><option value="website">웹사이트</option></select></label>
+    <label>프로젝트 유형 <select name="project_type" required><option value="WINDOWS_APP">Windows 프로그램</option><option value="WEB_APP">웹 애플리케이션 / 웹사이트</option><option value="MOBILE_APP">모바일 앱</option><option value="CROSS_PLATFORM_APP">크로스플랫폼 앱</option><option value="LIBRARY_TOOL">라이브러리 / 도구</option><option value="OTHER">기타</option></select></label>
+    <fieldset class="platform-options"><legend>플랫폼 <span class="optional">선택</span></legend>{% for platform in supported_platforms %}<label><input type="checkbox" name="platforms" value="{{ platform }}"> {{ platform }}</label>{% endfor %}</fieldset>
     <label>웹사이트 주소 <span class="optional">웹사이트 유형 선택 시 필수</span><input type="url" name="website_url" placeholder="https://example.com"></label>
     <label>Git 소스 링크 <span class="optional">선택 · HTTPS 또는 HTTP</span><input type="url" name="source_url" placeholder="https://github.com/example/project"></label>
     <label>아이콘 <span class="optional">선택 · PNG/JPG/WEBP/GIF</span><input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/gif"></label>

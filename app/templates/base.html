@@ -28,6 +28,8 @@
   {% endif %}
 </header>
 <main class="shell">
+  {% set notice = request.query_params.get('notice') %}
+  {% if notice %}<div class="alert success page-notice">{% if notice == 'saved' %}저장되었습니다.{% elif notice == 'release-uploaded' %}릴리스가 등록되었습니다.{% elif notice == 'resource-uploaded' %}프로젝트 자료가 등록되었습니다.{% elif notice == 'resource-deleted' %}프로젝트 자료가 삭제되었습니다.{% elif notice == 'resource-restored' %}프로젝트 자료가 복구되었습니다.{% elif notice == 'project-deleted' %}프로젝트가 Trash로 이동되었습니다.{% elif notice == 'project-restored' %}프로젝트가 복구되었습니다.{% else %}작업이 완료되었습니다.{% endif %}</div>{% endif %}
   {% block content %}{% endblock %}
 </main>
 </body>

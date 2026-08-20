@@ -1,8 +1,12 @@
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from app.models import Project
+from app.db import Base
+from app.models import Project, ProjectResource
+from app.project_types import ProjectType, ResourceCategory
 from app.services.file_tree import move_destination, parent_repo_path
-from app.services.project_service import normalize_output_type, normalize_source_url, normalize_website_url, project_release_path, project_storage_path
+from app.services.project_service import normalize_platforms, normalize_project_type, normalize_source_url, normalize_website_url, project_release_path, project_storage_path
 from app.services.storage import StorageError
 
 
@@ -28,16 +32,45 @@ def test_project_source_url_validation():
         normalize_source_url("github.com/nuni/repo")
 
 
-def test_project_output_type_and_website_url_validation():
-    assert normalize_output_type("website") == "website"
-    assert normalize_website_url("https://nuni.co.kr/app", "website") == "https://nuni.co.kr/app"
-    assert normalize_website_url("", "windows_app") is None
+def test_project_type_platform_and_website_validation():
+    assert normalize_project_type("website") == ProjectType.WEB_APP.value
+    assert normalize_project_type(ProjectType.MOBILE_APP.value) == ProjectType.MOBILE_APP.value
+    assert normalize_platforms(["Windows", "Windows", "Web"]) == ["Windows", "Web"]
+    assert normalize_website_url("https://nuni.co.kr/app", ProjectType.WEB_APP.value) == "https://nuni.co.kr/app"
+    assert normalize_website_url("", ProjectType.WINDOWS_APP.value) is None
     with pytest.raises(ValueError):
-        normalize_output_type("desktop")
+        normalize_project_type("desktop")
     with pytest.raises(ValueError):
-        normalize_website_url("", "website")
+        normalize_platforms(["DOS"])
     with pytest.raises(ValueError):
-        normalize_website_url("javascript:alert(1)", "website")
+        normalize_website_url("", ProjectType.WEB_APP.value)
+    with pytest.raises(ValueError):
+        normalize_website_url("javascript:alert(1)", ProjectType.WEB_APP.value)
+
+
+def test_project_type_platform_and_resource_persist():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        project = Project(name="NUNI Demo", slug="nuni-demo", project_type=ProjectType.OTHER.value, platforms=["Linux"])
+        db.add(project)
+        db.commit()
+        loaded = db.query(Project).filter_by(slug="nuni-demo").one()
+        assert loaded.project_type == "OTHER"
+        assert loaded.platforms == ["Linux"]
+
+        resource = ProjectResource(
+            project=loaded,
+            category=ResourceCategory.DOCUMENT.value,
+            title="사용자 설명서",
+            original_filename="manual.pdf",
+            storage_path="프로젝트/nuni-demo/resources/document/manual.pdf",
+            file_size=123,
+            sha256="a" * 64,
+        )
+        db.add(resource)
+        db.commit()
+        assert db.query(ProjectResource).one().project_id == loaded.id
 
 
 def test_move_destination_preserves_basename():
